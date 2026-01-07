@@ -1,0 +1,170 @@
+import { Injectable, ForbiddenException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository, Equal, MoreThan } from 'typeorm';
+import { MicroPost } from '../entities/microposts';
+import { Auth } from '../entities/auth';
+
+@Injectable()
+export class PostService {
+  constructor(
+    @InjectRepository(MicroPost)
+    private microPostsRepository: Repository<MicroPost>,
+    @InjectRepository(Auth)
+    private authRepository: Repository<Auth>,
+  ) {}
+
+  async createPost(message: string, token: string) {
+    // ログイン済みかチェック
+    const now = new Date();
+    const auth = await this.authRepository.findOne({
+      where: {
+        token: Equal(token),
+        expire_at: MoreThan(now),
+      },
+    });
+    if (!auth) {
+      throw new ForbiddenException();
+    }
+
+    const record = {
+      user_id: auth.user_id,
+
+      content: message,
+    };
+    await this.microPostsRepository.save(record);
+  }
+
+  async getList(
+    token: string,
+    start: number = 0,
+    nr_records: number = 1,
+    keyword?: string,
+  ) {
+    // ログイン済みかチェック
+    const now = new Date();
+    const auth = await this.authRepository.findOne({
+      where: {
+        token: Equal(token),
+
+        expire_at: MoreThan(now),
+      },
+    });
+    if (!auth) {
+      throw new ForbiddenException();
+    }
+
+    const qb = this.microPostsRepository
+
+      .createQueryBuilder('micro_post')
+
+      .leftJoinAndSelect('user', 'user', 'user.id=micro_post.user_id')
+
+      .select([
+        'micro_post.id as id',
+
+        'micro_post.user_id as user_id',
+
+        'user.name as user_name',
+
+        'micro_post.content as content',
+
+        'micro_post.created_at as created_at',
+      ])
+
+      .orderBy('micro_post.created_at', 'DESC')
+
+      .offset(start)
+
+      .limit(nr_records);
+
+    if (keyword) {
+      qb.andWhere('micro_post.content LIKE :kw', { kw: `%${keyword}%` });
+    }
+    type ResultType = {
+      id: number;
+
+      user_id: number;
+
+      content: string;
+
+      user_name: string;
+
+      created_at: Date;
+    };
+
+    const records = await qb.getRawMany<ResultType>();
+    const totalCount = await qb.getCount();
+    console.log(records, totalCount);
+
+    return {
+      records: records,
+      totalCount: totalCount,
+    };
+  }
+
+  async deletePost(id: number, token: string) {
+    // ログイン済みかチェック
+    const now = new Date();
+
+    const auth = await this.authRepository.findOne({
+      where: {
+        token: Equal(token),
+        expire_at: MoreThan(now),
+      },
+    });
+
+    if (!auth) {
+      throw new ForbiddenException();
+    }
+
+    const post = await this.microPostsRepository.findOne({
+      where: {
+        id: Equal(id),
+      },
+    });
+
+    if (!post) {
+      throw new ForbiddenException();
+    }
+
+    if (post.user_id !== auth.user_id) {
+      throw new ForbiddenException();
+    }
+
+    await this.microPostsRepository.delete({ id: Equal(id) });
+    return { success: true };
+  }
+
+  async updatePost(id: number, message: string, token: string) {
+    // ログイン済みかチェック
+    const now = new Date();
+
+    const auth = await this.authRepository.findOne({
+      where: {
+        token: Equal(token),
+        expire_at: MoreThan(now),
+      },
+    });
+
+    if (!auth) {
+      throw new ForbiddenException();
+    }
+
+    const post = await this.microPostsRepository.findOne({
+      where: {
+        id: Equal(id),
+      },
+    });
+
+    if (!post) {
+      throw new ForbiddenException();
+    }
+
+    if (post.user_id !== auth.user_id) {
+      throw new ForbiddenException();
+    }
+    // 部分更新なのでsaveではなくupdateを使うことで処理が早くなる
+    await this.microPostsRepository.update(id, { content: message });
+    return { success: true };
+  }
+}

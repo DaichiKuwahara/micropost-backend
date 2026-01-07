@@ -1,0 +1,48 @@
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Query,
+  Delete,
+  Patch,
+  Param,
+} from '@nestjs/common';
+import { PostService } from './post.service';
+
+@Controller('post')
+export class PostController {
+  constructor(private readonly postService: PostService) {}
+
+  @Post()
+  async createPost(
+    @Body('message') message: string,
+    @Query('token') token: string,
+  ) {
+    return await this.postService.createPost(message, token);
+  }
+
+  @Get()
+  async getList(
+    @Query('token') token: string,
+    @Query('start') start: number,
+    @Query('records') records: number,
+    @Query('keyword') keyword: string,
+  ) {
+    return await this.postService.getList(token, start, records, keyword);
+  }
+
+  @Delete(':id')
+  async deletePost(@Param('id') id: number, @Query('token') token: string) {
+    return await this.postService.deletePost(id, token);
+  }
+
+  @Patch(':id')
+  async updatePost(
+    @Param('id') id: number,
+    @Body('message') message: string,
+    @Query('token') token: string,
+  ) {
+    return await this.postService.updatePost(id, message, token);
+  }
+}
