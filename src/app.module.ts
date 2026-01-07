@@ -20,7 +20,7 @@ import { AuthModule } from './auth/auth.module';
         password: configService.get<string>('DB_PASS'),
         database: configService.get<string>('DB_DATABASE'),
         autoLoadEntities: true,
-        synchronize: false,
+        synchronize: true,
       }),
       inject: [ConfigService],
     }),
